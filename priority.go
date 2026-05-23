@@ -50,3 +50,21 @@ func sortByPriority(names []string, priorities map[string]Priority) []string {
 	}
 	return sorted
 }
+
+// String returns a human-readable label for the priority level.
+// Named constants are returned as their label; other values are formatted
+// as "Priority(<value>)".
+func (p Priority) String() string {
+	switch p {
+	case PriorityLow:
+		return "Low"
+	case PriorityNormal:
+		return "Normal"
+	case PriorityHigh:
+		return "High"
+	case PriorityCritical:
+		return "Critical"
+	default:
+		return fmt.Sprintf("Priority(%d)", int(p))
+	}
+}
