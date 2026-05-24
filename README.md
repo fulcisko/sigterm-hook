@@ -16,6 +16,7 @@ package main
 import (
     "context"
     "log"
+    "time"
 
     "github.com/yourusername/sigterm-hook"
 )
@@ -34,8 +35,12 @@ func main() {
         return server.Shutdown(ctx)
     }, sighook.DependsOn(db)) // server shuts down before database
 
-    // Block until SIGTERM or SIGINT is received, then run hooks in order
-    if err := h.Wait(context.Background()); err != nil {
+    // Block until SIGTERM or SIGINT is received, then run hooks in order.
+    // A timeout can be applied via context to cap total shutdown duration.
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+
+    if err := h.Wait(ctx); err != nil {
         log.Fatalf("shutdown error: %v", err)
     }
 
