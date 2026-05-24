@@ -23,4 +23,12 @@
 //	)
 //
 // Multiple notifiers are called in registration order for every event.
+//
+// # ShutdownNotification fields
+//
+// Each notification carries:
+//
+//   - Event   — the lifecycle event type (see Event constants)
+//   - Handler — the name of the handler associated with the event, if any
+//   - Err     — the error returned by a handler, populated only for EventHandlerFailed
 package sigtermhook
