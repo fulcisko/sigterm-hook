@@ -6,47 +6,61 @@ import (
 	"time"
 )
 
-// timeoutChain applies both a per-handler timeout and the global deadline,
-// returning whichever context expires first along with a combined cancel.
-func timeoutChain(parent context.Context, handlerTimeout, globalDeadline time.Duration) (context.Context, context.CancelFunc) {
-	if handlerTimeout <= 0 && globalDeadline <= 0 {
-		return context.WithCancel(parent)
+// timeoutChain resolves the effective deadline for a handler execution by
+// composing the handler-level timeout with the global shutdown deadline.
+// The shorter of the two wins; if neither is set the parent context is
+// returned unchanged.
+func timeoutChain(
+	parent context.Context,
+	handlerTimeout time.Duration,
+	globalDeadline time.Time,
+) (context.Context, context.CancelFunc, string) {
+	now := time.Now()
+
+	var (
+		effective time.Time
+		label    string
+	)
+
+	// Start with the global deadline when it is in the future.
+	if !globalDeadline.IsZero() && globalDeadline.After(now) {
+		effective = globalDeadline
+		label = "global"
 	}
 
-	ctx := parent
-	cancels := make([]context.CancelFunc, 0, 2)
-
-	if globalDeadline > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, globalDeadline)
-		cancels = append(cancels, cancel)
-	}
-
+	// Prefer the handler timeout when it produces an earlier deadline.
 	if handlerTimeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, handlerTimeout)
-		cancels = append(cancels, cancel)
-	}
-
-	combined := func() {
-		for _, c := range cancels {
-			c()
+		handlerDeadline := now.Add(handlerTimeout)
+		if effective.IsZero() || handlerDeadline.Before(effective) {
+			effective = handlerDeadline
+			label = "handler"
 		}
 	}
 
-	return ctx, combined
+	// If a parent deadline already exists and is even earlier, respect it.
+	if pd, ok := parent.Deadline(); ok {
+		if effective.IsZero() || pd.Before(effective) {
+			effective = pd
+			label = "parent"
+		}
+	}
+
+	if effective.IsZero() {
+		// No bounds — return a no-op cancel so callers can always defer cancel().
+		ctx, cancel := context.WithCancel(parent)
+		return ctx, cancel, "none"
+	}
+
+	ctx, cancel := context.WithDeadline(parent, effective)
+	return ctx, cancel, label
 }
 
-// deadlineLabel returns a human-readable label for which deadline was hit.
-func deadlineLabel(handlerTimeout, globalDeadline time.Duration) string {
-	if handlerTimeout > 0 && globalDeadline > 0 {
-		return fmt.Sprintf("handler(%s) or global(%s)", handlerTimeout, globalDeadline)
+// deadlineLabel returns a human-readable description of the remaining time
+// until the context deadline, or "no deadline" when none is set.
+func deadlineLabel(ctx context.Context) string {
+	if dl, ok := ctx.Deadline(); ok {
+		remaining := time.Until(dl).Truncate(time.Millisecond)
+		return fmt.Sprintf("deadline in %s", remaining)
 	}
-	if handlerTimeout > 0 {
-		return fmt.Sprintf("handler(%s)", handlerTimeout)
-	}
-	if globalDeadline > 0 {
-		return fmt.Sprintf("global(%s)", globalDeadline)
-	}
-	return "none"
+	return "no deadline"
 }
