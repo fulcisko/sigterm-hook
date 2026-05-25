@@ -39,6 +39,15 @@ func (c *captureLogger) contains(substr string) bool {
 	return false
 }
 
+// all returns a copy of all recorded log messages.
+func (c *captureLogger) all() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	result := make([]string, len(c.logs))
+	copy(result, c.logs)
+	return result
+}
+
 func TestCustomLogger(t *testing.T) {
 	logger := &captureLogger{}
 	m := sigtermhook.NewManager().WithLogger(logger)
@@ -47,7 +56,7 @@ func TestCustomLogger(t *testing.T) {
 	m.Shutdown(context.Background())
 
 	if !logger.contains("svc") {
-		t.Error("expected logger to record shutdown of 'svc'")
+		t.Errorf("expected logger to record shutdown of 'svc'; got logs: %v", logger.all())
 	}
 }
 
