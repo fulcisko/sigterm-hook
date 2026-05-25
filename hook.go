@@ -57,6 +57,18 @@ func (m *Manager) Register(name string, fn ShutdownFunc, deps []string, retry *R
 	return nil
 }
 
+// Unregister removes a previously registered handler by name.
+// Returns an error if no handler with that name exists.
+func (m *Manager) Unregister(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, exists := m.handlers[name]; !exists {
+		return fmt.Errorf("handler %q not found", name)
+	}
+	delete(m.handlers, name)
+	return nil
+}
+
 // Shutdown runs all registered handlers in dependency order.
 func (m *Manager) Shutdown(ctx context.Context) error {
 	m.mu.Lock()
