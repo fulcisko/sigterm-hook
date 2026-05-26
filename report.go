@@ -30,6 +30,17 @@ func (r *ShutdownReport) Succeeded() bool {
 	return len(r.Errors) == 0
 }
 
+// FailedHandlers returns the subset of handlers that produced an error.
+func (r *ShutdownReport) FailedHandlers() []HandlerReport {
+	var failed []HandlerReport
+	for _, h := range r.Handlers {
+		if h.Err != nil {
+			failed = append(failed, h)
+		}
+	}
+	return failed
+}
+
 // WriteTo writes a human-readable summary to w.
 func (r *ShutdownReport) WriteTo(w io.Writer) (int64, error) {
 	var sb strings.Builder
